@@ -1,5 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import jwt
+from decouple import config
+
+
+ALG0 = config("algorithm")
+KEY0 = config("private_key")
 
 users = []
 
@@ -17,7 +23,16 @@ def test():
 # Create/Add User
 @app.post("/users", tags=["auth0"])
 def create_user(username: str, password: str):
-    users.append({"username": username, "password": password})
+    user_cred = {
+        "username": username,
+        "password": password
+    }
+    enc_user_cred = jwt.encode(user_cred, KEY0, algorithm=ALG0)
+    user = {
+        "username": username,
+        "user_cred": enc_user_cred
+    }
+    users.append(user)
     return {"status": "user created"}
 
 # User Register
@@ -30,9 +45,12 @@ def get_users():
 @app.post("/users/login", tags=["auth0"])
 def user_login(username: str, password: str):
     for user in users:
-        if user["username"] == username and user["password"] == password:
-            return {"status": "user logged in"}
+        if user["username"] == username:
+            user_cred = jwt.decode(user["user_cred"], KEY0, algorithms=[ALG0])
+            if user_cred["username"] == username and user_cred["password"] == password:
+                return {"status": "user credentials matched"}
+            else:
+                raise HTTPException(status_code=401, detail="user credentials did not match")
         else:
-            raise HTTPException(status_code=401, detail="username or password did not match")
-
+            return {"status": "user not found"}
 
